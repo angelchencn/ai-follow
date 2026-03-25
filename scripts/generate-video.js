@@ -169,7 +169,7 @@ async function generateTTSForSegments(segments) {
     try {
       await runEdgeTTS(segment.text, audioPath);
       durationInSeconds = await getAudioDuration(audioPath);
-      audioFile = audioFileName;
+      audioFile = `audio/${audioFileName}`;
       log(`  [OK] ${segment.id} — ${durationInSeconds.toFixed(2)}s`);
     } catch (err) {
       log(
@@ -203,11 +203,12 @@ async function copyAudioToPublic(segments) {
 
   for (const segment of segments) {
     if (!segment.audioFile) continue;
-    const src = join(AUDIO_DIR, segment.audioFile);
-    const dest = join(VIDEO_PUBLIC_AUDIO, segment.audioFile);
+    const fileName = basename(segment.audioFile);
+    const src = join(AUDIO_DIR, fileName);
+    const dest = join(VIDEO_PUBLIC_AUDIO, fileName);
     if (existsSync(src)) {
       await copyFile(src, dest);
-      log(`  Copied ${segment.audioFile}`);
+      log(`  Copied ${fileName}`);
     }
   }
 }
