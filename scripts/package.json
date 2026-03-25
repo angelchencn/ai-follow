@@ -4,5 +4,8 @@
   "type": "module",
   "scripts": {
     "prepare-digest": "node prepare-digest.js"
+  },
+  "dependencies": {
+    "kling-api": "^1.0.0"
   }
 }
