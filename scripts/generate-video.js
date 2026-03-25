@@ -83,7 +83,7 @@ async function runPrepareDigest() {
 // ---------------------------------------------------------------------------
 
 async function runGenerateScript(digest) {
-  log("Step 2/5 — Generating video script via Claude...");
+  log("Step 2/5 — Generating video script...");
   return new Promise((resolve, reject) => {
     const child = spawn("node", [join(__dirname, "generate-script.js")], {
       stdio: ["pipe", "pipe", "inherit"],
