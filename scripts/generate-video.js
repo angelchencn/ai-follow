@@ -249,6 +249,37 @@ async function renderVideo(remotionPropsPath, outputFile) {
 }
 
 // ---------------------------------------------------------------------------
+// Telegram upload
+// ---------------------------------------------------------------------------
+
+async function sendToTelegram(videoPath, chatId, date) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.warn("TELEGRAM_BOT_TOKEN not set, skipping Telegram upload");
+    return;
+  }
+
+  console.log("Sending video to Telegram...");
+  const videoData = await readFile(videoPath);
+  const form = new FormData();
+  form.append("chat_id", chatId);
+  form.append("video", new Blob([videoData]), `ai-briefing-${date}.mp4`);
+  form.append("caption", `AI Builder 日报 · ${date}`);
+
+  const resp = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.warn(`Telegram upload failed: ${resp.status} ${err}`);
+    return;
+  }
+  console.log("Video sent to Telegram!");
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -346,6 +377,11 @@ async function run() {
   console.log(`  Total duration: ${totalDurationSeconds.toFixed(1)}s`);
   console.log(`  Elapsed time:   ${elapsedSeconds}s`);
   console.log("========================================\n");
+
+  // Optional: send to Telegram
+  if (process.argv.includes("--send")) {
+    await sendToTelegram(outputFile, "8361396438", videoScript.date);
+  }
 }
 
 run().catch(async (err) => {
