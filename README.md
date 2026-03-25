@@ -40,12 +40,13 @@ pip install edge-tts
 brew install ffmpeg
 ```
 
-### 设置环境变量
+### 设置环境变量（可选）
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."          # 必须
 export TELEGRAM_BOT_TOKEN="123456:ABCdef..."   # 可选，用于发送到 Telegram
 ```
+
+无需 API key，脚本完全本地运行，零额外费用。
 
 ### 生成视频
 
@@ -65,7 +66,7 @@ cd video && npx remotion studio src/index.ts
 ```
 scripts/
   prepare-digest.js     获取 feed 数据（X/播客/博客）
-  generate-script.js    Claude API 生成视频脚本
+  generate-script.js    模板生成视频脚本（无需 API）
   generate-video.js     编排：数据 → 脚本 → TTS → 渲染
 
 video/                  Remotion 视频项目
@@ -83,7 +84,7 @@ GitHub Feeds (JSON)
        ↓
 prepare-digest.js — 获取推文/播客/博客数据
        ↓
-generate-script.js — Claude AI 生成中文播报文案 + 时长裁剪
+generate-script.js — 模板生成中文播报文案 + 时长裁剪（零成本）
        ↓
 generate-video.js
   ├── Edge TTS 语音合成（zh-CN-YunxiNeural）
@@ -98,7 +99,7 @@ output/video/ai-briefing-YYYY-MM-DD.mp4
 | 组件 | 技术 |
 |------|------|
 | 视频渲染 | [Remotion](https://remotion.dev) (React) |
-| AI 摘要 | Claude API (Haiku) |
+| 文案生成 | 模板引擎（零成本） |
 | 语音合成 | Edge TTS (微软, 免费) |
 | 音频分析 | ffprobe |
 | 字体 | Noto Sans SC |

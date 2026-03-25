@@ -4,8 +4,5 @@
   "type": "module",
   "scripts": {
     "prepare-digest": "node prepare-digest.js"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0"
   }
 }

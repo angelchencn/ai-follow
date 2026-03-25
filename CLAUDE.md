@@ -31,17 +31,17 @@ node scripts/prepare-digest.js | node scripts/generate-script.js  # → video sc
 
 ## Required Environment
 
-- `ANTHROPIC_API_KEY` — used by generate-script.js (Claude Haiku for narration)
 - `TELEGRAM_BOT_TOKEN` — optional, for --send flag
 - `ffprobe` — system dependency (`brew install ffmpeg`)
 - `edge-tts` — Python package (`pip install edge-tts`), installed at `/Library/Frameworks/Python.framework/Versions/3.13/bin/edge-tts`
+- No API keys needed — generate-script.js is pure template-based, no external API calls
 
 ## Architecture
 
 **Pipeline:** `prepare-digest.js` → `generate-script.js` → `generate-video.js` (TTS + Remotion render) → MP4
 
 - **scripts/prepare-digest.js** — Fetches feed JSON from GitHub + loads prompt templates from `prompts/`. Outputs merged digest JSON with `x`, `podcasts`, `blogs`, `stats`, `prompts` fields.
-- **scripts/generate-script.js** — Reads digest from stdin, calls Claude API (Haiku) per builder/podcast/blog to generate Chinese narration, applies 300-second duration budget (3-step cascade: trim tweets → reduce podcasts → truncate text), outputs VideoScript JSON.
+- **scripts/generate-script.js** — Reads digest from stdin, uses templates to generate Chinese narration from raw data (no API calls), applies 300-second duration budget (3-step cascade: trim tweets → reduce podcasts → truncate text), outputs VideoScript JSON.
 - **scripts/generate-video.js** — Orchestrator: runs digest→script pipeline, generates TTS audio per segment via edge-tts (`zh-CN-YunxiNeural`), copies audio to `video/public/audio/`, writes Remotion props, renders 1080x1920 MP4.
 - **video/** — Remotion project (React/TypeScript). Entry: `src/index.ts` → `Root.tsx` → `VideoComposition.tsx` which maps segment types to components (Intro, Overview, TweetCard, PodcastCard, BlogCard, Outro) via `<Sequence>` with audio-driven timing.
 

@@ -3,11 +3,9 @@
 // ============================================================================
 // Follow Builders — Generate Script
 // ============================================================================
-// Reads prepare-digest.js output from stdin, calls Claude API (Haiku) to
-// generate Chinese narration for each segment, outputs VideoScript JSON.
+// Reads prepare-digest.js output from stdin, transforms into VideoScript JSON.
+// Pure template-based — no external API calls, no cost.
 // ============================================================================
-
-import Anthropic from "@anthropic-ai/sdk";
 
 const MAX_DURATION_SECONDS = 300;
 const CHARS_PER_SECOND = 4;
@@ -27,23 +25,7 @@ function totalDuration(segments) {
 }
 
 // ---------------------------------------------------------------------------
-// Claude API
-// ---------------------------------------------------------------------------
-
-async function generateNarration(client, systemPrompt, content) {
-  const resp = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    system:
-      systemPrompt +
-      "\n\n输出要求：生成简洁的中文播报文案，适合语音朗读，每段不超过100字。",
-    messages: [{ role: "user", content }],
-  });
-  return resp.content[0].text;
-}
-
-// ---------------------------------------------------------------------------
-// Segment builders
+// Segment builders (template-based, no API)
 // ---------------------------------------------------------------------------
 
 function buildIntroSegment(digest) {
@@ -53,7 +35,7 @@ function buildIntroSegment(digest) {
     month: "long",
     day: "numeric",
   });
-  const text = `欢迎收看 AI Builders 每日简报，今天是${date}。今日为你带来 ${stats.xBuilders} 位 builder 的 ${stats.totalTweets} 条推文动态、${stats.podcastEpisodes} 期播客精选，以及 ${stats.blogPosts} 篇官方博客摘要，一起来看看 AI 圈的最新进展。`;
+  const text = `欢迎收看 AI Builders 每日简报，今天是${date}。今日为你带来 ${stats.xBuilders} 位 builder 的动态、${stats.podcastEpisodes} 期播客精选，以及 ${stats.blogPosts} 篇博客摘要。`;
   return {
     id: "intro",
     type: "intro",
@@ -67,7 +49,7 @@ function buildIntroSegment(digest) {
 
 function buildOverviewSegment(digest) {
   const { stats } = digest;
-  const text = `今日速览：来自 ${stats.xBuilders} 位顶级 builder 的实时动态，${stats.podcastEpisodes} 期深度播客，${stats.blogPosts} 篇前沿博客，精华内容全在这里。`;
+  const text = `今日速览：${stats.xBuilders} 位顶级 builder 的实时动态，${stats.podcastEpisodes} 期深度播客，${stats.blogPosts} 篇前沿博客。`;
   return {
     id: "overview",
     type: "overview",
@@ -84,33 +66,51 @@ function buildOverviewSegment(digest) {
   };
 }
 
-async function buildTweetSegment(client, systemPrompt, builder) {
-  const tweetLines = builder.tweets
-    .map((t) => `- ${t.text}${t.url ? ` (${t.url})` : ""}`)
-    .join("\n");
+function buildTweetSegment(builder) {
+  // Extract key info from tweets without LLM
+  const handle = (builder.handle || "").replace(/^@/, "");
+  const name = builder.name || handle;
+  const bio = builder.bio || "";
+  const role = bio ? `，${bio.slice(0, 30)}` : "";
 
-  const content = `Builder: ${builder.name} (${builder.handle})\n推文：\n${tweetLines}`;
-  const text = await generateNarration(client, systemPrompt, content);
+  // Pick top tweets (first 3 by feed order)
+  const topTweets = (builder.tweets || []).slice(0, 3);
+  const tweetSummaries = topTweets
+    .map((t) => {
+      // Trim tweet text to reasonable length for narration
+      const text = (t.text || "").replace(/https?:\/\/\S+/g, "").trim();
+      return text.length > 80 ? text.slice(0, 80) : text;
+    })
+    .filter((t) => t.length > 5);
 
-  const handle = builder.handle.replace(/^@/, "");
+  const narration = tweetSummaries.length > 0
+    ? `${name}${role}。${tweetSummaries.join("。")}。`
+    : `${name}${role}，暂无重要更新。`;
+
   return {
-    id: `tweet-${handle}`,
+    id: `tweet-${handle || name.toLowerCase().replace(/\s+/g, "-")}`,
     type: "tweet",
-    text,
+    text: narration,
     display: {
-      title: builder.name,
-      subtitle: builder.handle,
+      title: name,
+      subtitle: tweetSummaries.join(" · ").slice(0, 100),
       avatarUrl: builder.avatarUrl || undefined,
-      avatarFallback: builder.name ? builder.name[0] : handle[0],
+      avatarFallback: name ? name[0] : "?",
+      qrUrl: topTweets[0]?.url || undefined,
     },
   };
 }
 
-async function buildPodcastSegment(client, systemPrompt, podcast) {
-  const content = `播客：${podcast.title}\n节目：${podcast.show || ""}\n简介：${podcast.description || ""}\nURL: ${podcast.url || ""}`;
-  const text = await generateNarration(client, systemPrompt, content);
+function buildPodcastSegment(podcast) {
+  const title = podcast.title || "未知播客";
+  const show = podcast.show || podcast.name || "";
+  const description = (podcast.description || "").slice(0, 200);
 
-  const slugId = (podcast.title || "podcast")
+  const narration = description
+    ? `${show}最新一期：${title}。${description}。`
+    : `${show}最新一期：${title}。`;
+
+  const slugId = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
@@ -119,24 +119,32 @@ async function buildPodcastSegment(client, systemPrompt, podcast) {
   return {
     id: `podcast-${slugId}`,
     type: "podcast",
-    text,
+    text: narration,
     display: {
-      title: podcast.title || "",
-      subtitle: podcast.show || "",
+      title: show,
+      subtitle: title,
       qrUrl: podcast.url || undefined,
     },
   };
 }
 
-async function buildBlogSegment(client, systemPrompt, blog) {
-  const postLines = (blog.posts || [])
-    .map((p) => `- ${p.title}: ${p.summary || p.description || ""}${p.url ? ` (${p.url})` : ""}`)
-    .join("\n");
+function buildBlogSegment(blog) {
+  const blogName = blog.name || blog.source || "博客";
+  const posts = blog.posts || [];
 
-  const content = `博客：${blog.name || blog.source || ""}\n文章：\n${postLines}`;
-  const text = await generateNarration(client, systemPrompt, content);
+  const postSummaries = posts
+    .slice(0, 3)
+    .map((p) => {
+      const summary = (p.summary || p.description || "").slice(0, 100);
+      return summary ? `${p.title}：${summary}` : p.title;
+    })
+    .filter(Boolean);
 
-  const slugId = (blog.name || blog.source || "blog")
+  const narration = postSummaries.length > 0
+    ? `${blogName}发布新文章。${postSummaries.join("。")}。`
+    : `${blogName}暂无新文章。`;
+
+  const slugId = blogName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
@@ -145,21 +153,19 @@ async function buildBlogSegment(client, systemPrompt, blog) {
   return {
     id: `blog-${slugId}`,
     type: "blog",
-    text,
+    text: narration,
     display: {
-      title: blog.name || blog.source || "",
-      subtitle: (blog.posts || []).map((p) => p.title).join(" · ").slice(0, 80),
+      title: blogName,
+      subtitle: posts.map((p) => p.title).join(" · ").slice(0, 80),
     },
   };
 }
 
 function buildOutroSegment() {
-  const text =
-    "以上就是今天的 AI Builders 简报全部内容。记得关注这些顶级 builder，追踪 AI 前沿动态。我们明天见！";
   return {
     id: "outro",
     type: "outro",
-    text,
+    text: "以上就是今天的 AI Builders 简报全部内容。关注我们，追踪 AI 前沿动态。明天见！",
     display: {
       title: "感谢收看",
       subtitle: "AI Builders 每日简报",
@@ -175,15 +181,12 @@ const MIN_TWEET_SEGMENTS = 3;
 const TRUNCATE_TWEET_CHARS = 80;
 
 function applyDurationBudget(segments) {
-  // Step 1: Remove lowest-priority tweet segments (last ones) until under budget
   let adjusted = trimTweetSegments(segments);
 
-  // Step 2: Reduce podcasts to 1 if still over budget
   if (totalDuration(adjusted) > MAX_DURATION_SECONDS) {
     adjusted = reducePodcasts(adjusted);
   }
 
-  // Step 3: Truncate tweet text to 80 chars if still over budget
   if (totalDuration(adjusted) > MAX_DURATION_SECONDS) {
     adjusted = truncateTweetText(adjusted);
   }
@@ -203,7 +206,6 @@ function trimTweetSegments(segments) {
     kept = kept.slice(0, kept.length - 1);
   }
 
-  // Reconstruct preserving original order
   const keptIds = new Set(kept.map((s) => s.id));
   return segments.filter((s) => s.type !== "tweet" || keptIds.has(s.id));
 }
@@ -223,20 +225,6 @@ function truncateTweetText(segments) {
     if (s.text.length <= TRUNCATE_TWEET_CHARS) return s;
     return { ...s, text: s.text.slice(0, TRUNCATE_TWEET_CHARS) };
   });
-}
-
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
-function validateDigest(digest) {
-  const required = ["summarize_tweets", "summarize_podcast", "summarize_blogs"];
-  const missing = required.filter((key) => !digest.prompts?.[key]);
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required prompt fields in digest.prompts: ${missing.join(", ")}`
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -265,48 +253,28 @@ async function main() {
     throw new Error(`Failed to parse digest JSON from stdin: ${err.message}`);
   }
 
-  validateDigest(digest);
-
-  const client = new Anthropic();
-  const { prompts } = digest;
-
-  // Build fixed segments
-  const introSegment = buildIntroSegment(digest);
-  const overviewSegment = buildOverviewSegment(digest);
-  const outroSegment = buildOutroSegment();
-
-  // Generate tweet segments in parallel
-  const tweetSegmentPromises = (digest.x || []).map((builder) =>
-    buildTweetSegment(client, prompts.summarize_tweets, builder)
+  // Build all segments (no API calls)
+  const tweetSegments = (digest.x || []).map((builder) =>
+    buildTweetSegment(builder)
   );
 
-  // Generate podcast segments in parallel
-  const podcastSegmentPromises = (digest.podcasts || []).map((podcast) =>
-    buildPodcastSegment(client, prompts.summarize_podcast, podcast)
+  const podcastSegments = (digest.podcasts || []).map((podcast) =>
+    buildPodcastSegment(podcast)
   );
 
-  // Generate blog segments in parallel
-  const blogSegmentPromises = (digest.blogs || []).map((blog) =>
-    buildBlogSegment(client, prompts.summarize_blogs, blog)
+  const blogSegments = (digest.blogs || []).map((blog) =>
+    buildBlogSegment(blog)
   );
 
-  const [tweetSegments, podcastSegments, blogSegments] = await Promise.all([
-    Promise.all(tweetSegmentPromises),
-    Promise.all(podcastSegmentPromises),
-    Promise.all(blogSegmentPromises),
-  ]);
-
-  // Assemble raw segments (order: intro, overview, tweets, podcasts, blogs, outro)
   const rawSegments = [
-    introSegment,
-    overviewSegment,
+    buildIntroSegment(digest),
+    buildOverviewSegment(digest),
     ...tweetSegments,
     ...podcastSegments,
     ...blogSegments,
-    outroSegment,
+    buildOutroSegment(),
   ];
 
-  // Apply duration budget
   const segments = applyDurationBudget(rawSegments);
 
   const videoScript = {
