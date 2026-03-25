@@ -1,0 +1,8 @@
+{
+  "name": "follow-builders-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "prepare-digest": "node prepare-digest.js"
+  }
+}
