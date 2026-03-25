@@ -27,4 +27,5 @@ export interface SegmentWithAudio extends Segment {
 export interface CompositionProps {
   segments: SegmentWithAudio[];
   date: string;
+  stats?: { builders: number; podcasts: number; blogs: number };
 }

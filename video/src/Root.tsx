@@ -14,7 +14,17 @@ export const RemotionRoot: React.FC = () => {
       defaultProps={{
         segments: [],
         date: "2026-03-25",
+        stats: { builders: 0, podcasts: 0, blogs: 0 },
       } satisfies CompositionProps}
+      calculateMetadata={({ props }) => {
+        const totalFrames = props.segments.reduce(
+          (sum, seg) => sum + seg.durationInFrames,
+          0
+        );
+        return {
+          durationInFrames: totalFrames > 0 ? totalFrames : 300,
+        };
+      }}
     />
   );
 };
