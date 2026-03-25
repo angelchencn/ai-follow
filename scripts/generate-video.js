@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const OUTPUT = join(ROOT, "output");
 const AUDIO_DIR = join(OUTPUT, "audio");
-const VIDEO_DIR = join(OUTPUT, "video");
+const VIDEO_DIR = join(ROOT, "release");
 const VIDEO_PUBLIC_AUDIO = join(ROOT, "video", "public", "audio");
 
 const EDGE_TTS =
@@ -291,30 +291,52 @@ async function run() {
   await mkdir(AUDIO_DIR, { recursive: true });
   await mkdir(VIDEO_DIR, { recursive: true });
 
-  // Step 1: Fetch digest
-  const digest = await runPrepareDigest();
+  // Check for --script flag to use a pre-built AI script
+  const scriptFlagIdx = process.argv.indexOf("--script");
+  const customScriptPath = scriptFlagIdx !== -1 ? process.argv[scriptFlagIdx + 1] : null;
 
-  // Check if there is any content to process
-  const { stats } = digest;
-  const hasContent =
-    (stats?.xBuilders || 0) > 0 ||
-    (stats?.podcastEpisodes || 0) > 0 ||
-    (stats?.blogPosts || 0) > 0;
+  let videoScript;
+  let stats;
 
-  if (!hasContent) {
-    log("No content found in digest (all feeds empty). Exiting early.");
-    process.exit(0);
+  if (customScriptPath) {
+    // Use pre-built AI script (e.g. from Claude Code session)
+    log("Loading AI-processed script...");
+    const raw = await readFile(customScriptPath, "utf-8");
+    videoScript = JSON.parse(raw);
+    stats = {
+      xBuilders: videoScript.segments.filter((s) => s.type === "tweet").length,
+      podcastEpisodes: videoScript.segments.filter((s) => s.type === "podcast").length,
+      blogPosts: videoScript.segments.filter((s) => s.type === "blog").length,
+    };
+    log(
+      `Script loaded: ${videoScript.segmentCount} segments, ~${videoScript.estimatedDurationSeconds}s`
+    );
+  } else {
+    // Step 1: Fetch digest
+    const digest = await runPrepareDigest();
+
+    // Check if there is any content to process
+    stats = digest.stats;
+    const hasContent =
+      (stats?.xBuilders || 0) > 0 ||
+      (stats?.podcastEpisodes || 0) > 0 ||
+      (stats?.blogPosts || 0) > 0;
+
+    if (!hasContent) {
+      log("No content found in digest (all feeds empty). Exiting early.");
+      process.exit(0);
+    }
+
+    log(
+      `Digest loaded: ${stats.xBuilders} builders, ${stats.podcastEpisodes} podcasts, ${stats.blogPosts} blogs`
+    );
+
+    // Step 2: Generate video script
+    videoScript = await runGenerateScript(digest);
+    log(
+      `Script generated: ${videoScript.segmentCount} segments, ~${videoScript.estimatedDurationSeconds}s`
+    );
   }
-
-  log(
-    `Digest loaded: ${stats.xBuilders} builders, ${stats.podcastEpisodes} podcasts, ${stats.blogPosts} blogs`
-  );
-
-  // Step 2: Generate video script
-  const videoScript = await runGenerateScript(digest);
-  log(
-    `Script generated: ${videoScript.segmentCount} segments, ~${videoScript.estimatedDurationSeconds}s`
-  );
 
   // Step 3: TTS for each segment
   const enrichedSegments = await generateTTSForSegments(videoScript.segments);

@@ -233,6 +233,9 @@ async function fetchTwitterViaApify(builders) {
 
     if (!authorHandle || !handleMap.has(authorHandle)) continue;
 
+    // Skip replies — only keep original tweets and retweets
+    if (raw.isReply) continue;
+
     const createdAt = raw.createdAt
       ? new Date(raw.createdAt).toISOString()
       : new Date().toISOString();
@@ -245,11 +248,17 @@ async function fetchTwitterViaApify(builders) {
 
     if (text.length < 5) continue;
 
+    // Normalize URL to x.com
+    const rawUrl = raw.twitterUrl || raw.url || "";
+    const tweetUrl = rawUrl
+      ? rawUrl.replace("twitter.com", "x.com")
+      : `https://x.com/${authorHandle}/status/${raw.id || ""}`;
+
     const tweet = {
       id: raw.id || raw.id_str || "",
       text: text.slice(0, 500),
       createdAt,
-      url: raw.twitterUrl || raw.url || `https://x.com/${authorHandle}/status/${raw.id || ""}`,
+      url: tweetUrl,
       likes: raw.likeCount || raw.favorite_count || 0,
       retweets: raw.retweetCount || raw.retweet_count || 0,
       replies: raw.replyCount || 0,

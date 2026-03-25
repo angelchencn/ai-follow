@@ -4,8 +4,9 @@ data/
 # Generated output
 output/audio/
 output/video/
-output/script*.json
+output/*.json
 output/remotion-props.json
+#release/
 
 # Video public audio (copied at build time)
 video/public/audio/
