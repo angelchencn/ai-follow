@@ -1,0 +1,14 @@
+# Generated output
+output/audio/
+output/video/
+output/script*.json
+output/remotion-props.json
+
+# Video public audio (copied at build time)
+video/public/audio/
+
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store
