@@ -219,9 +219,10 @@ async function fetchTwitterViaApify(builders) {
   const rawTweets = await res.json();
   console.log(`  Apify returned ${rawTweets.length} raw tweets`);
 
-  // Group tweets by author handle
+  // Group tweets by author handle, collect profile info
   const handleMap = new Map(builders.map((b) => [b.handle.toLowerCase(), b]));
   const tweetsByHandle = new Map();
+  const profileByHandle = new Map();
 
   for (const raw of rawTweets) {
     const authorHandle = (
@@ -232,6 +233,17 @@ async function fetchTwitterViaApify(builders) {
     ).toLowerCase();
 
     if (!authorHandle || !handleMap.has(authorHandle)) continue;
+
+    // Save profile info (avatar, bio) from first encountered tweet
+    if (!profileByHandle.has(authorHandle) && raw.author) {
+      // Use 400x400 avatar instead of _normal (48x48)
+      const avatar = (raw.author.profilePicture || "")
+        .replace("_normal.", "_400x400.");
+      profileByHandle.set(authorHandle, {
+        avatarUrl: avatar,
+        bio: (raw.author.description || "").slice(0, 200),
+      });
+    }
 
     // Skip replies — only keep original tweets and retweets
     if (raw.isReply) continue;
@@ -273,11 +285,13 @@ async function fetchTwitterViaApify(builders) {
     const tweets = tweetsByHandle.get(b.handle.toLowerCase()) || [];
     const status = tweets.length > 0 ? "OK" : "EMPTY";
     console.log(`  [${status}] @${b.handle}: ${tweets.length} tweets`);
+    const profile = profileByHandle.get(b.handle.toLowerCase()) || {};
     return {
       source: "x",
       name: b.name,
       handle: b.handle,
-      bio: "",
+      bio: profile.bio || "",
+      avatarUrl: profile.avatarUrl || "",
       tweets,
     };
   });

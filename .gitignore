@@ -8,8 +8,10 @@ output/*.json
 output/remotion-props.json
 #release/
 
-# Video public audio (copied at build time)
+# Video public assets (copied at build time)
 video/public/audio/
+video/public/kling/
+output/kling/
 
 # Dependencies
 node_modules/

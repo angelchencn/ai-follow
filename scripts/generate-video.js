@@ -197,10 +197,11 @@ async function generateTTSForSegments(segments) {
 // Step 4: Copy audio files to video/public/audio/
 // ---------------------------------------------------------------------------
 
-async function copyAudioToPublic(segments) {
-  log("Step 4/5 — Copying audio to video/public/audio/...");
-  await mkdir(VIDEO_PUBLIC_AUDIO, { recursive: true });
+async function copyAssetsToPublic(segments) {
+  log("Step 4/5 — Copying assets to video/public/...");
 
+  // Copy audio files
+  await mkdir(VIDEO_PUBLIC_AUDIO, { recursive: true });
   for (const segment of segments) {
     if (!segment.audioFile) continue;
     const fileName = basename(segment.audioFile);
@@ -208,7 +209,24 @@ async function copyAudioToPublic(segments) {
     const dest = join(VIDEO_PUBLIC_AUDIO, fileName);
     if (existsSync(src)) {
       await copyFile(src, dest);
-      log(`  Copied ${fileName}`);
+      log(`  Copied audio/${fileName}`);
+    }
+  }
+
+  // Copy Kling AI video backgrounds
+  const klingDir = join(OUTPUT, "kling");
+  const klingPublic = join(ROOT, "video", "public", "kling");
+  if (existsSync(klingDir)) {
+    await mkdir(klingPublic, { recursive: true });
+    for (const segment of segments) {
+      if (!segment.videoBg) continue;
+      const fileName = basename(segment.videoBg);
+      const src = join(klingDir, fileName);
+      const dest = join(klingPublic, fileName);
+      if (existsSync(src)) {
+        await copyFile(src, dest);
+        log(`  Copied kling/${fileName}`);
+      }
     }
   }
 }
@@ -351,7 +369,7 @@ async function run() {
   log(`Wrote enriched script to output/script-with-audio.json`);
 
   // Step 4: Copy audio files for Remotion staticFile access
-  await copyAudioToPublic(enrichedSegments);
+  await copyAssetsToPublic(enrichedSegments);
 
   // Build remotion props
   const date = new Date().toISOString().split("T")[0];

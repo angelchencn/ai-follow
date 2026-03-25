@@ -22,6 +22,7 @@ export interface SegmentWithAudio extends Segment {
   audioFile: string;
   durationInSeconds: number;
   durationInFrames: number;
+  videoBg?: string;
 }
 
 export interface CompositionProps {

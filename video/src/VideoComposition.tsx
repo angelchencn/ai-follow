@@ -6,6 +6,8 @@ import { TweetCard } from "./components/TweetCard";
 import { PodcastCard } from "./components/PodcastCard";
 import { BlogCard } from "./components/BlogCard";
 import { Outro } from "./components/Outro";
+import { Subtitle } from "./components/Subtitle";
+import { VideoBg } from "./components/VideoBg";
 
 function renderSegment(
   segment: SegmentWithAudio,
@@ -73,18 +75,30 @@ export const VideoComposition: React.FC<CompositionProps> = ({ segments, date, s
         const from = cumulativeFrames;
         cumulativeFrames += segment.durationInFrames;
 
+        const content = (
+          <>
+            {renderSegment(segment, date, resolvedStats)}
+            <Subtitle
+              text={segment.text}
+              durationInFrames={segment.durationInFrames}
+            />
+            {segment.audioFile && (
+              <Audio src={staticFile(segment.audioFile)} />
+            )}
+          </>
+        );
+
         return (
           <Sequence
             key={segment.id}
             from={from}
             durationInFrames={segment.durationInFrames}
           >
-            <AbsoluteFill>
-              {renderSegment(segment, date, resolvedStats)}
-              {segment.audioFile && (
-                <Audio src={staticFile(segment.audioFile)} />
-              )}
-            </AbsoluteFill>
+            {segment.videoBg ? (
+              <VideoBg src={segment.videoBg}>{content}</VideoBg>
+            ) : (
+              <AbsoluteFill>{content}</AbsoluteFill>
+            )}
           </Sequence>
         );
       })}
