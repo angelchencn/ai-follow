@@ -4,10 +4,10 @@
 // Follow Builders — Fetch Feeds
 // ============================================================================
 // Manually triggered: fetches latest data from RSS feeds and saves locally.
-// No external dependencies — uses built-in fetch + simple XML parsing.
+// Twitter/X via Apify, podcasts and blogs via RSS.
 // ============================================================================
 
-import { writeFile, mkdir } from "fs/promises";
+import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -53,19 +53,19 @@ const PODCASTS = [
   },
   {
     name: "Training Data",
-    rss: "https://feeds.transistor.fm/training-data",
+    rss: "https://feeds.megaphone.fm/trainingdata",
   },
   {
     name: "No Priors",
-    rss: "https://anchor.fm/s/deaborc/podcast/rss",
+    rss: "https://feeds.megaphone.fm/nopriors",
   },
   {
     name: "Unsupervised Learning",
-    rss: "https://api.substack.com/feed/podcast/2548.rss",
+    rss: "https://www.omnycontent.com/d/playlist/070af456-729b-4a0f-9c09-a6c100397b59/3b159371-276d-429e-ae86-a6c1003b01c4/7b61d4e1-bd3d-4d3f-97c2-a6c1003b01c9/podcast.rss",
   },
   {
-    name: "Data Driven NYC",
-    rss: "https://feeds.simplecast.com/SqN0Dnoc",
+    name: "The MAD Podcast",
+    rss: "https://anchor.fm/s/f2ee4948/podcast/rss",
   },
 ];
 
@@ -76,7 +76,7 @@ const PODCASTS = [
 const BLOGS = [
   {
     name: "Anthropic Engineering",
-    rss: "https://www.anthropic.com/feed",
+    rss: "https://raw.githubusercontent.com/Olshansk/rss-feeds/refs/heads/main/feeds/feed_anthropic_engineering.xml",
   },
 ];
 
@@ -123,20 +123,33 @@ function extractPubDate(itemXml) {
 }
 
 // ---------------------------------------------------------------------------
-// RSSHub instances for Twitter/X
+// Load .env file (simple parser, no dependencies)
 // ---------------------------------------------------------------------------
 
-const RSSHUB_INSTANCES = [
-  "https://rsshub.app",
-  "https://rsshub.rssforever.com",
-  "https://rsshub.feeded.xyz",
-];
+async function loadEnv() {
+  const envPath = join(__dirname, "..", ".env");
+  if (!existsSync(envPath)) return;
+  const content = await readFile(envPath, "utf-8");
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim();
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
 
-async function fetchWithTimeout(url, timeoutMs = 15000) {
+// ---------------------------------------------------------------------------
+// HTTP helpers
+// ---------------------------------------------------------------------------
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timer);
     return res;
   } catch (err) {
@@ -152,70 +165,115 @@ async function fetchRSS(url) {
 }
 
 // ---------------------------------------------------------------------------
-// Fetch Twitter via RSSHub
+// Fetch Twitter/X via Apify (apidojo/tweet-scraper)
 // ---------------------------------------------------------------------------
 
-async function fetchTwitterBuilder(builder) {
+async function fetchTwitterViaApify(builders) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) {
+    console.log("  [SKIP] APIFY_TOKEN not set — skipping Twitter/X fetch");
+    return builders.map((b) => ({
+      source: "x",
+      name: b.name,
+      handle: b.handle,
+      bio: "",
+      tweets: [],
+    }));
+  }
+
+  const handles = builders.map((b) => b.handle);
   const lookbackMs = 24 * 60 * 60 * 1000;
   const cutoff = new Date(Date.now() - lookbackMs);
 
-  for (const instance of RSSHUB_INSTANCES) {
-    const url = `${instance}/twitter/user/${builder.handle}`;
-    try {
-      const xml = await fetchRSS(url);
-      const channelDesc = extractTag(xml, "description");
-      const items = extractAllItems(xml);
+  console.log(`  Calling Apify tweet-scraper for ${handles.length} handles...`);
 
-      const tweets = items
-        .map((item) => {
-          const title = extractCDATA(extractTag(item, "title"));
-          const description = extractCDATA(extractTag(item, "description"));
-          const link = extractLink(item);
-          const pubDate = extractPubDate(item);
+  // Batch handles into groups of 5 with OR queries to stay within search limits
+  const batchSize = 5;
+  const batches = [];
+  for (let i = 0; i < handles.length; i += batchSize) {
+    batches.push(handles.slice(i, i + batchSize));
+  }
+  const searchTerms = batches.map(
+    (batch) => batch.map((h) => `from:${h}`).join(" OR "),
+  );
 
-          // Use description for full text, fallback to title
-          const text = description
-            .replace(/<[^>]+>/g, "")
-            .replace(/&amp;/g, "&")
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/&quot;/g, '"')
-            .trim() || title;
+  const actorUrl = `https://api.apify.com/v2/acts/kaitoeasyapi~twitter-x-data-tweet-scraper-pay-per-result-cheapest/run-sync-get-dataset-items?token=${token}`;
+  const res = await fetchWithTimeout(
+    actorUrl,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        searchTerms,
+        maxItems: 200,
+      }),
+    },
+    300000, // 5 min timeout — Apify sync endpoint allows up to 300s
+  );
 
-          return {
-            id: link.split("/").pop() || "",
-            text: text.slice(0, 500),
-            createdAt: pubDate,
-            url: link,
-            likes: 0,
-            retweets: 0,
-            replies: 0,
-          };
-        })
-        .filter((t) => new Date(t.createdAt) > cutoff && t.text.length > 5);
-
-      console.log(`  [OK] @${builder.handle}: ${tweets.length} tweets (via ${instance})`);
-      return {
-        source: "x",
-        name: builder.name,
-        handle: builder.handle,
-        bio: extractCDATA(channelDesc).replace(/<[^>]+>/g, "").slice(0, 200),
-        tweets,
-      };
-    } catch (err) {
-      console.log(`  [WARN] @${builder.handle} failed on ${instance}: ${err.message}`);
-      continue;
-    }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Apify HTTP ${res.status}: ${body.slice(0, 200)}`);
   }
 
-  console.log(`  [FAIL] @${builder.handle}: all RSSHub instances failed`);
-  return {
-    source: "x",
-    name: builder.name,
-    handle: builder.handle,
-    bio: "",
-    tweets: [],
-  };
+  const rawTweets = await res.json();
+  console.log(`  Apify returned ${rawTweets.length} raw tweets`);
+
+  // Group tweets by author handle
+  const handleMap = new Map(builders.map((b) => [b.handle.toLowerCase(), b]));
+  const tweetsByHandle = new Map();
+
+  for (const raw of rawTweets) {
+    const authorHandle = (
+      raw.author?.userName ||
+      raw.user?.screen_name ||
+      raw.twitterUrl?.match(/twitter\.com\/([^/]+)/)?.[1] ||
+      ""
+    ).toLowerCase();
+
+    if (!authorHandle || !handleMap.has(authorHandle)) continue;
+
+    const createdAt = raw.createdAt
+      ? new Date(raw.createdAt).toISOString()
+      : new Date().toISOString();
+
+    if (new Date(createdAt) < cutoff) continue;
+
+    const text = (raw.text || raw.full_text || "")
+      .replace(/https:\/\/t\.co\/\S+/g, "")
+      .trim();
+
+    if (text.length < 5) continue;
+
+    const tweet = {
+      id: raw.id || raw.id_str || "",
+      text: text.slice(0, 500),
+      createdAt,
+      url: raw.twitterUrl || raw.url || `https://x.com/${authorHandle}/status/${raw.id || ""}`,
+      likes: raw.likeCount || raw.favorite_count || 0,
+      retweets: raw.retweetCount || raw.retweet_count || 0,
+      replies: raw.replyCount || 0,
+    };
+
+    const existing = tweetsByHandle.get(authorHandle) || [];
+    tweetsByHandle.set(authorHandle, [...existing, tweet]);
+  }
+
+  // Build results in same format as before
+  const results = builders.map((b) => {
+    const tweets = tweetsByHandle.get(b.handle.toLowerCase()) || [];
+    const status = tweets.length > 0 ? "OK" : "EMPTY";
+    console.log(`  [${status}] @${b.handle}: ${tweets.length} tweets`);
+    return {
+      source: "x",
+      name: b.name,
+      handle: b.handle,
+      bio: "",
+      tweets,
+    };
+  });
+
+  return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,14 +367,23 @@ async function fetchBlog(blog) {
 async function main() {
   console.log("=== Fetch Feeds ===\n");
 
+  await loadEnv();
   if (!existsSync(DATA_DIR)) await mkdir(DATA_DIR, { recursive: true });
 
-  // 1. Fetch Twitter/X
-  console.log("Fetching X/Twitter via RSSHub...");
-  const xResults = [];
-  for (const builder of BUILDERS) {
-    const result = await fetchTwitterBuilder(builder);
-    xResults.push(result);
+  // 1. Fetch Twitter/X via Apify
+  console.log("Fetching X/Twitter via Apify...");
+  let xResults;
+  try {
+    xResults = await fetchTwitterViaApify(BUILDERS);
+  } catch (err) {
+    console.log(`  [FAIL] Apify error: ${err.message}`);
+    xResults = BUILDERS.map((b) => ({
+      source: "x",
+      name: b.name,
+      handle: b.handle,
+      bio: "",
+      tweets: [],
+    }));
   }
 
   const feedX = {

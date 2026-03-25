@@ -4,9 +4,9 @@
 
 ## 功能
 
-- 追踪 **25 位 AI builder** 的 X/Twitter 动态（Andrej Karpathy、Sam Altman、Swyx 等）
-- 聚合 **5 个顶级 AI 播客**（Latent Space、Training Data、No Priors 等）
-- 整合 **Anthropic/Claude 官方博客**
+- 追踪 **20 位 AI builder** 的 X/Twitter 动态（via Apify）
+- 聚合 **5 个顶级 AI 播客**（via RSS）
+- 整合 **Anthropic/Claude 官方博客**（via 社区 RSS）
 - 用 Claude AI 生成中文播报文案
 - Edge TTS 中文男声语音合成
 - Remotion 渲染 1080x1920 竖屏动画视频
@@ -40,13 +40,15 @@ pip install edge-tts
 brew install ffmpeg
 ```
 
-### 设置环境变量（可选）
+### 设置环境变量
 
 ```bash
-export TELEGRAM_BOT_TOKEN="123456:ABCdef..."   # 可选，用于发送到 Telegram
+# .env 文件（已加入 .gitignore）
+APIFY_TOKEN=apify_api_xxx          # 必需，用于抓取 X/Twitter 数据
+TELEGRAM_BOT_TOKEN=123456:ABCdef   # 可选，用于发送到 Telegram
 ```
 
-无需 API key，脚本完全本地运行，零额外费用。
+Twitter 数据通过 [Apify](https://apify.com) 抓取（~$0.25/千条推文），播客和博客通过 RSS 免费获取。
 
 ### 生成视频
 
@@ -104,11 +106,54 @@ output/video/ai-briefing-YYYY-MM-DD.mp4
 | 音频分析 | ffprobe |
 | 字体 | Noto Sans SC |
 
+## 数据源
+
+### X/Twitter — 20 位 AI Builder
+
+| # | 姓名 | X 地址 |
+|---|------|--------|
+| 1 | Andrej Karpathy | https://x.com/karpathy |
+| 2 | Sam Altman | https://x.com/sama |
+| 3 | Swyx | https://x.com/swyx |
+| 4 | Guillermo Rauch | https://x.com/rauchg |
+| 5 | Amjad Masad | https://x.com/amasad |
+| 6 | Aaron Levie | https://x.com/levie |
+| 7 | Garry Tan | https://x.com/garrytan |
+| 8 | Alex Albert | https://x.com/alexalbert__ |
+| 9 | Josh Woodward | https://x.com/joshwoodward |
+| 10 | Peter Yang | https://x.com/petergyang |
+| 11 | Nan Yu | https://x.com/thenanyu |
+| 12 | Cat Wu | https://x.com/_catwu |
+| 13 | Thariq | https://x.com/trq212 |
+| 14 | Matt Turck | https://x.com/mattturck |
+| 15 | Zara Zhang | https://x.com/zarazhangrui |
+| 16 | Nikunj Kothari | https://x.com/nikunj |
+| 17 | Peter Steinberger | https://x.com/steipete |
+| 18 | Dan Shipper | https://x.com/danshipper |
+| 19 | Aditya Agarwal | https://x.com/adityaag |
+| 20 | Claude (官方) | https://x.com/claudeai |
+
+### 播客 — 5 个
+
+| # | 播客名 | 主持/来源 |
+|---|--------|-----------|
+| 1 | Latent Space | Swyx & Alessio |
+| 2 | Training Data | Sequoia Capital |
+| 3 | No Priors | Sarah Guo & Elad Gil |
+| 4 | Unsupervised Learning | Daniel Miessler |
+| 5 | The MAD Podcast | Matt Turck (FirstMark) |
+
+### 博客 — 1 个
+
+| # | 博客名 | 来源 |
+|---|--------|------|
+| 1 | Anthropic Engineering | anthropic.com（社区 RSS 镜像） |
+
 ## 自定义
 
 - **修改 prompt**：编辑 `prompts/` 目录下的 md 文件
 - **修改主题**：编辑 `video/src/styles/theme.ts`
-- **添加 builder**：在上游 feed-x.json 中添加
+- **添加 builder**：编辑 `scripts/fetch-feeds.js` 中的 `BUILDERS` 数组
 - **个人 prompt 覆盖**：创建 `~/.follow-builders/prompts/` 目录，放入同名文件
 
 ## License
