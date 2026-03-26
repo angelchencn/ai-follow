@@ -19,7 +19,7 @@ export const Outro: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        background: `linear-gradient(315deg, ${theme.colors.bgPrimary}, ${theme.colors.bgSecondary})`,
+        background: "transparent",
         justifyContent: "center",
         alignItems: "center",
         flexDirection: "column",

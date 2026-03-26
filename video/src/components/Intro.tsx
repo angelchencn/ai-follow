@@ -19,7 +19,7 @@ export const Intro: React.FC<{ date: string }> = ({ date }) => {
   return (
     <AbsoluteFill
       style={{
-        background: `linear-gradient(135deg, ${theme.colors.bgPrimary}, ${theme.colors.bgSecondary})`,
+        background: "transparent",
         justifyContent: "center",
         alignItems: "center",
         flexDirection: "column",

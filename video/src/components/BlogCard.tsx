@@ -28,7 +28,7 @@ export const BlogCard: React.FC<BlogCardProps> = ({ title, subtitle }) => {
   return (
     <AbsoluteFill
       style={{
-        background: `linear-gradient(135deg, ${theme.colors.bgPrimary}, ${theme.colors.bgSecondary})`,
+        background: "transparent",
         justifyContent: "center",
         alignItems: "flex-start",
         flexDirection: "column",

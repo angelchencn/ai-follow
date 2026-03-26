@@ -95,7 +95,7 @@ export const VideoComposition: React.FC<CompositionProps> = ({ segments, date, s
             durationInFrames={segment.durationInFrames}
           >
             {segment.videoBg ? (
-              <VideoBg src={segment.videoBg}>{content}</VideoBg>
+              <VideoBg src={segment.videoBg} durationInFrames={segment.durationInFrames}>{content}</VideoBg>
             ) : (
               <AbsoluteFill>{content}</AbsoluteFill>
             )}

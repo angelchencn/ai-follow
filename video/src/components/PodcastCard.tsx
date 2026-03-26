@@ -66,7 +66,7 @@ export const PodcastCard: React.FC<PodcastCardProps> = ({ title, subtitle, point
   return (
     <AbsoluteFill
       style={{
-        background: `linear-gradient(135deg, ${theme.colors.bgPrimary}, ${theme.colors.bgSecondary})`,
+        background: "transparent",
         justifyContent: "center",
         alignItems: "flex-start",
         flexDirection: "column",

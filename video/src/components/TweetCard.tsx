@@ -40,7 +40,7 @@ export const TweetCard: React.FC<TweetCardProps> = ({
   return (
     <AbsoluteFill
       style={{
-        background: `linear-gradient(135deg, ${theme.colors.bgPrimary}, ${theme.colors.bgSecondary})`,
+        background: "transparent",
         justifyContent: "center",
         alignItems: "center",
         flexDirection: "column",

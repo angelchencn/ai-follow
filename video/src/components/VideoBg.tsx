@@ -1,16 +1,20 @@
 import { AbsoluteFill, OffthreadVideo, staticFile } from "remotion";
-import { theme } from "../styles/theme";
 
 interface VideoBgProps {
   src: string;
+  durationInFrames: number;
   children: React.ReactNode;
 }
 
 /**
- * Full-screen AI video background with dark overlay for text readability.
- * Falls back to solid color if video fails to load.
+ * Full-screen AI video background with dark overlay.
+ * Video plays once then freezes on last frame (Remotion default).
  */
-export const VideoBg: React.FC<VideoBgProps> = ({ src, children }) => {
+export const VideoBg: React.FC<VideoBgProps> = ({
+  src,
+  durationInFrames,
+  children,
+}) => {
   return (
     <AbsoluteFill>
       {/* AI video background */}
@@ -29,7 +33,7 @@ export const VideoBg: React.FC<VideoBgProps> = ({ src, children }) => {
       {/* Dark overlay for text readability */}
       <AbsoluteFill
         style={{
-          backgroundColor: "rgba(0, 0, 0, 0.45)",
+          backgroundColor: "rgba(0, 0, 0, 0.4)",
         }}
       />
 
